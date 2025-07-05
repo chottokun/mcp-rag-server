@@ -12,8 +12,11 @@ import importlib
 import logging
 from dotenv import load_dotenv
 
+
 from .mcp_server import MCPServer
+
 from .rag_tools import register_rag_tools, create_rag_service_from_env
+
 
 
 def main():
@@ -60,6 +63,28 @@ def main():
         rag_service = create_rag_service_from_env()
         register_rag_tools(server, rag_service)
         logger.info("RAGツールを登録しました")
+
+        # MarkItDownの初期化
+        llm_client = None
+        llm_model = None
+        openai_api_key = os.environ.get("OPENAI_API_KEY")
+        if openai_api_key:
+            try:
+                from openai import OpenAI
+                llm_client = OpenAI(api_key=openai_api_key)
+                llm_model = "gpt-4o"  # または利用したいモデル
+                logger.info("OpenAIクライアントを初期化しました")
+            except ImportError:
+                logger.warning("openaiライブラリのインポートに失敗しました。")
+
+        docintel_endpoint = os.environ.get("DOCUMENT_INTELLIGENCE_ENDPOINT")
+        if docintel_endpoint:
+            from markitdown import MarkItDown
+            md = MarkItDown(docintel_endpoint=docintel_endpoint, llm_client=llm_client, llm_model=llm_model)
+            logger.info("MarkItDownをDocument Intelligenceモードで初期化しました")
+        else:
+            from markitdown import MarkItDown
+            md = MarkItDown(enable_plugins=False, llm_client=llm_client, llm_model=llm_model)
 
         # 追加のツールモジュールがある場合は読み込む
         if args.module:
