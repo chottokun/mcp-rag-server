@@ -56,14 +56,11 @@ class RAGService:
             self.logger.error(f"データベースの初期化に失敗しました: {str(e)}")
             raise
 
-    def index_documents(
+    def index_document(
         self,
-        source_dir: str,
-        processed_dir: str = None,
-        chunk_size: int = 500,
-        chunk_overlap: int = 100,
-        incremental: bool = False,
-    ) -> Dict[str, Any]:
+        file_path: str,
+        chunks: List[Dict[str, Any]],
+    ) -> None:
         """
         ディレクトリ内のファイルをインデックス化します。
 

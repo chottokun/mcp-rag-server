@@ -451,52 +451,46 @@ class VectorDatabase:
             if "cursor" in locals() and cursor:
                 cursor.close()
 
-    def clear_database(self) -> int:
+    def clear_all_data(self) -> int:
         """
-        データベースをクリアします（全てのドキュメントを削除）。
+        `documents` テーブルから全てのデータを削除しますが、テーブル自体は残します。
 
         Raises:
             Exception: クリアに失敗した場合
 
         Returns:
-            削除されたドキュメントの数。テーブルをDROPするため、削除前の数を返します。
+            削除された行数。
         """
         try:
-            # 接続がない場合は接続
             if not self.connection:
                 self.connect()
 
-            # 削除前のドキュメント数を取得
-            count_before_delete = self.get_document_count()
+            with self.connection.cursor() as cursor:
+                cursor.execute("TRUNCATE TABLE documents RESTART IDENTITY;")
+                deleted_rows = cursor.rowcount  # TRUNCATEは0を返すことがあるので、参考値
+                self.connection.commit()
 
-            # カーソルの作成
-            cursor = self.connection.cursor()
+                # 実際の削除数を取得するために再度カウントする方が確実
+                cursor.execute("SELECT COUNT(*) FROM documents;")
+                remaining_rows = cursor.fetchone()[0]
+                if remaining_rows == 0:
+                    self.logger.info("`documents` テーブルのすべてのデータをクリアしました。")
+                else:
+                    self.logger.warning("`documents` テーブルのクリアを試みましたが、データが残っています。")
 
-            # テーブルを削除してスキーマもクリア
-            cursor.execute("DROP TABLE IF EXISTS documents;")
+                # TRUNCATEが返すrowcountは信頼できないため、ここでは0を返すか、
+                # 事前のカウントを返す仕様にするのが良い。今回は0を返す。
+                return 0
 
-            # コミット
-            self.connection.commit()
-
-            if count_before_delete > 0:
-                self.logger.info(
-                    f"データベースをクリアしました（documentsテーブルを削除、{count_before_delete} 個のドキュメントが対象でした）"
-                )
-            else:
-                self.logger.info("データベースをクリアしました（documentsテーブルを削除）")
-            return count_before_delete
-
+        except psycopg2.errors.UndefinedTable:
+            self.connection.rollback()
+            self.logger.warning("`documents` テーブルが存在しないため、クリア処理をスキップしました。")
+            return 0
         except Exception as e:
-            # ロールバック
             if self.connection:
                 self.connection.rollback()
-            self.logger.error(f"データベースのクリア中にエラーが発生しました: {str(e)}")
+            self.logger.error(f"データベースのクリア中にエラーが発生しました: {e}")
             raise
-
-        finally:
-            # カーソルを閉じる
-            if "cursor" in locals() and cursor:
-                cursor.close()
 
     def get_document_count(self) -> int:
         """

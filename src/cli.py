@@ -45,6 +45,9 @@ def main():
     run_parser = subparsers.add_parser("runserver", help="MCPサーバーを起動します")
     run_parser.add_argument("--host", default="0.0.0.0", help="ホスト")
     run_parser.add_argument("--port", type=int, default=8000, help="ポート")
+
+    # --- clearコマンド ---
+    clear_parser = subparsers.add_parser("clear", help="データベース内のすべてのドキュメントを削除します")
     run_parser.add_argument("--no-auth", action="store_true", help="APIキー認証を無効にする")
     run_parser.add_argument("--module", action="append", help="追加のツールモジュール（例: src.example_tool）")
 
@@ -63,6 +66,8 @@ def main():
 
         # uvicornでサーバーを起動
         uvicorn.run(app, host=args.host, port=args.port)
+    elif args.command == "clear":
+        clear_database()
 
 
 def index_documents(source_dir: str, processed_dir: str):
@@ -78,21 +83,15 @@ def index_documents(source_dir: str, processed_dir: str):
     logger.info(f"処理済みディレクトリ: {processed_dir}")
 
     try:
-        # ディレクトリの存在確認
         if not os.path.isdir(source_dir):
             logger.error(f"ソースディレクトリが見つかりません: {source_dir}")
             return
 
-        # RAGサービスとDocumentProcessorのインスタンスを作成
         rag_service = create_rag_service_from_env()
         document_processor = DocumentProcessor()
 
-        # 既存のインデックスをクリア
-        logger.info("既存のインデックスをクリアしています...")
-        # rag_service.vector_database.clear_all_data() # ToDo: 引数でクリアするかどうか選べるようにする
-        logger.info("インデックスのクリア処理はスキップされました（実装保留）")
+        logger.info("インデックスの追記・更新を行います。")
 
-        # ドキュメントの処理とインデックス化
         total_files = 0
         total_chunks = 0
         for root, _, files in os.walk(source_dir):
@@ -100,18 +99,15 @@ def index_documents(source_dir: str, processed_dir: str):
                 file_path = os.path.join(root, file)
                 try:
                     logger.info(f"'{file_path}' を処理中...")
-                    # ドキュメントをチャンクに分割
                     chunks = document_processor.process_file(file_path)
                     if not chunks:
                         logger.warning(f"'{file_path}' からチャンクが生成されませんでした。")
                         continue
 
-                    # チャンクをインデックス化
                     rag_service.index_document(file_path, chunks)
                     logger.info(f"'{file_path}' をインデックス化しました（{len(chunks)} チャンク）")
                     total_files += 1
                     total_chunks += len(chunks)
-
                 except Exception as e:
                     logger.error(f"'{file_path}' の処理中にエラーが発生しました: {e}", exc_info=True)
 
@@ -121,6 +117,19 @@ def index_documents(source_dir: str, processed_dir: str):
 
     except Exception as e:
         logger.error(f"インデックス化プロセス全体でエラーが発生しました: {e}", exc_info=True)
+
+def clear_database():
+    """
+    データベース内のすべてのドキュメントを削除します。
+    """
+    logger.info("データベースのクリア処理を開始します...")
+    try:
+        rag_service = create_rag_service_from_env()
+        rag_service.vector_database.clear_all_data()
+        rag_service.vector_database.initialize_database() # テーブルを再作成
+        logger.info("データベースのクリアが完了しました。")
+    except Exception as e:
+        logger.error(f"データベースのクリア中にエラーが発生しました: {e}", exc_info=True)
 
 if __name__ == "__main__":
     main()
