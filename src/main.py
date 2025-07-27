@@ -1,89 +1,77 @@
-#!/usr/bin/env python
 """
-MCP RAG Server
+MCP RAG Server Application Factory
 
-Model Context Protocol (MCP)に準拠したRAG機能を持つPythonサーバー
+このモジュールはFastAPIアプリケーションのインスタンスを作成し、設定します。
 """
 
-import sys
 import os
-import argparse
 import importlib
 import logging
+from fastapi import FastAPI
 from dotenv import load_dotenv
 
-from .mcp_server import MCPServer
-from .rag_tools import register_rag_tools, create_rag_service_from_env
+from .mcp_server import get_api_key
+from fastapi import Depends
+from .rag_tools import router as rag_router
+from fastapi_mcp import FastApiMCP
 
+# 環境変数の読み込み
+load_dotenv()
 
-def main():
+# ロギング設定
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
+
+def create_app(no_auth: bool = False, additional_modules: list = None) -> FastAPI:
     """
-    メイン関数
+    FastAPIアプリケーションを作成し、設定します。
 
-    コマンドライン引数を解析し、MCPサーバーを起動します。
+    Args:
+        no_auth (bool, optional): Trueの場合、認証を無効にします。 Defaults to False.
+        additional_modules (list, optional): 追加で読み込むツールモジュールのリスト。 Defaults to None.
+
+    Returns:
+        FastAPI: 設定済みのFastAPIアプリケーションインスタンス。
     """
-    # コマンドライン引数の解析
-    parser = argparse.ArgumentParser(
-        description="MCP RAG Server - Model Context Protocol (MCP)に準拠したRAG機能を持つPythonサーバー"
+    # FastAPIアプリの作成
+    app = FastAPI(
+        title="MCP RAG Server",
+        version="0.2.0",
+        description="fastapi-mcpを使用してRAG機能を提供するサーバー",
     )
-    parser.add_argument("--name", default="mcp-rag-server", help="サーバー名")
-    parser.add_argument("--version", default="0.1.0", help="サーバーバージョン")
-    parser.add_argument("--description", default="MCP RAG Server - 複数形式のドキュメントのRAG検索", help="サーバーの説明")
-    parser.add_argument("--module", help="追加のツールモジュール（例: myapp.tools）")
-    args = parser.parse_args()
 
-    # 環境変数の読み込み
-    load_dotenv()
+    # fastapi-mcpのセットアップ
+    mcp = FastApiMCP(app)
+    mcp.mount()
 
-    # ディレクトリの作成
-    os.makedirs("logs", exist_ok=True)
-    os.makedirs(os.environ.get("SOURCE_DIR", "data/source"), exist_ok=True)
-    os.makedirs(os.environ.get("PROCESSED_DIR", "data/processed"), exist_ok=True)
+    # 認証依存関係の設定
+    auth_dependencies = []
+    if not no_auth and os.environ.get("API_KEY"):
+        auth_dependencies.append(Depends(get_api_key))
 
-    # ロギングの設定
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        handlers=[
-            logging.StreamHandler(sys.stderr),
-            logging.FileHandler(os.path.join("logs", "mcp_rag_server.log"), encoding="utf-8"),
-        ],
-    )
-    logger = logging.getLogger("main")
+    # RAGツールのルーターを登録
+    app.include_router(rag_router, prefix="/rag", tags=["RAG"], dependencies=auth_dependencies)
+    logger.info("RAGツールを登録しました")
 
-    try:
-        # MCPサーバーの作成
-        server = MCPServer()
-
-        # RAGサービスの作成と登録
-        logger.info("RAGサービスを初期化しています...")
-        rag_service = create_rag_service_from_env()
-        register_rag_tools(server, rag_service)
-        logger.info("RAGツールを登録しました")
-
-        # 追加のツールモジュールがある場合は読み込む
-        if args.module:
+    # 追加のツールモジュールを登録
+    if additional_modules:
+        for module_name in additional_modules:
             try:
-                module = importlib.import_module(args.module)
-                if hasattr(module, "register_tools"):
-                    module.register_tools(server)
-                    print(f"モジュール '{args.module}' からツールを登録しました", file=sys.stderr)
+                module = importlib.import_module(module_name)
+                if hasattr(module, "router") and hasattr(module, "prefix") and hasattr(module, "tags"):
+                    app.include_router(
+                        module.router,
+                        prefix=module.prefix,
+                        tags=module.tags,
+                        dependencies=auth_dependencies
+                    )
+                    logger.info(f"モジュール '{module_name}' からルーターを登録しました")
                 else:
-                    print(f"警告: モジュール '{args.module}' に register_tools 関数が見つかりません", file=sys.stderr)
+                    logger.warning(f"モジュール '{module_name}' に登録可能なルーターが見つかりません")
             except ImportError as e:
-                print(f"警告: モジュール '{args.module}' の読み込みに失敗しました: {str(e)}", file=sys.stderr)
+                logger.error(f"モジュール '{module_name}' の読み込みに失敗しました: {e}")
 
-        # MCPサーバーの起動
-        server.start(args.name, args.version, args.description)
+    return app
 
-    except KeyboardInterrupt:
-        print("サーバーを終了します。", file=sys.stderr)
-        sys.exit(0)
-
-    except Exception as e:
-        print(f"エラーが発生しました: {str(e)}", file=sys.stderr)
-        sys.exit(1)
-
-
-if __name__ == "__main__":
-    main()
+# このファイルはアプリケーションファクトリを提供します。
+# サーバーを起動するには、src/cli.py を使用してください。

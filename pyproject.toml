@@ -21,6 +21,7 @@ classifiers = [
 ]
 dependencies = [
     "mcp[cli]",
+    "fastapi-mcp",
     "python-dotenv",
     "psycopg2-binary",
     "sentence-transformers",
@@ -33,6 +34,10 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest",
+    "pytest-cov",
+    "requests",
+    "fastapi",
+    "uvicorn[standard]",
 ]
 
 [project.scripts]

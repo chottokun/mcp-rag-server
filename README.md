@@ -1,81 +1,53 @@
 # MCP RAG Server
 
-MCP RAG Serverは、Model Context Protocol (MCP)に準拠したRAG（Retrieval-Augmented Generation）機能を持つPythonサーバーです。マークダウン、テキスト、パワーポイント、PDFなど複数の形式のドキュメントをデータソースとして、multilingual-e5-largeモデルを使用してインデックス化し、ベクトル検索によって関連情報を取得する機能を提供します。
+[![CI](https://github.com/tadata-org/mcp-rag-server/actions/workflows/pytest.yml/badge.svg)](https://github.com/tadata-org/mcp-rag-server/actions/workflows/pytest.yml)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
-## 概要
+Model Context Protocol (MCP) に準拠したRAG（Retrieval-Augmented Generation）機能を持つPythonサーバーです。
+`fastapi-mcp` を利用して、FastAPIアプリケーションをMCPサーバーとして公開します。
 
-このプロジェクトは、MCPサーバーの基本的な実装に加えて、RAG機能を提供します。複数形式のドキュメントをインデックス化し、自然言語クエリに基づいて関連情報を検索することができます。
+## 特徴
 
-## 機能
+- **MCP準拠**: Model Context Protocol をサポートし、対応クライアントと連携できます。
+- **RAG機能**: 指定されたドキュメントをベクトル化し、セマンティック検索を提供します。
+- **FastAPIベース**: `fastapi-mcp` を使用し、FastAPIの強力な機能を活用しています（自動APIドキュメント、依存性注入など）。
+- **拡張性**: 新しいツールセットをモジュールとして簡単に追加できます。
+- **認証**: APIキーによる認証機能をサポートしています。
+- **Docker対応**: PostgreSQL + pgvector を Docker で簡単にセットアップできます。
 
-- **MCPサーバーの基本実装**
-  - JSON-RPC over stdioベースで動作
-  - ツールの登録と実行のためのメカニズム
-  - エラーハンドリングとロギング
+## セットアップと実行
 
-- **RAG機能**
-  - 複数形式のドキュメント（マークダウン、テキスト、パワーポイント、PDF）の読み込みと解析
-  - 階層構造を持つソースディレクトリに対応
-  - markitdownライブラリを使用したパワーポイントやPDFからのマークダウン変換
-  - 選択可能なエンベディングモデル（multilingual-e5-large、ruriなど）を使用したエンベディング生成
-  - PostgreSQLのpgvectorを使用したベクトルデータベース
-  - ベクトル検索による関連情報の取得
-  - 前後のチャンク取得機能（コンテキストの連続性を確保）
-  - ドキュメント全文取得機能（完全なコンテキストを提供）
-  - 差分インデックス化機能（新規・変更ファイルのみを処理）
+### 1. 前提条件
 
-- **ツール**
-  - ベクトル検索ツール（MCP）
-  - ドキュメント数取得ツール（MCP）
-  - インデックス管理ツール（CLI）
+- [Python 3.10+](https://www.python.org/)
+- [Docker](https://www.docker.com/) と [Docker Compose](https://docs.docker.com/compose/)
+- [uv](https://docs.astral.sh/uv/) (推奨パッケージインストーラー)
 
-## 前提条件
+### 2. 環境設定
 
-- Python 3.10以上
-- PostgreSQL 14以上（pgvectorエクステンション付き）
-
-## インストール
-
-### 依存関係のインストール
+#### a. 仮想環境の作成と依存関係のインストール
 
 ```bash
-# uvがインストールされていない場合は先にインストール
-# pip install uv
+# 仮想環境を作成
+python -m venv .venv
+source .venv/bin/activate
 
-# 依存関係のインストール
-uv sync
+# uvを使って依存関係をインストール
+uv pip install -r requirements.txt
 ```
 
-### PostgreSQLとpgvectorのセットアップ
+#### b. 環境変数の設定
 
-#### Dockerを使用する場合
+`.env.sample` ファイルをコピーして `.env` ファイルを作成します。
 
 ```bash
-# pgvectorを含むPostgreSQLコンテナを起動
-docker run --name postgres-pgvector -e POSTGRES_PASSWORD=password -p 5432:5432 -d pgvector/pgvector:pg17
+cp .env.sample .env
 ```
 
-#### データベースの作成
+`.env` ファイルには、データベースの接続情報やAPIキーなどが含まれています。必要に応じて値を変更してください。
 
-PostgreSQLコンテナを起動した後、以下のコマンドでデータベースを作成します：
-
-```bash
-# ragdbデータベースの作成
-docker exec -it postgres-pgvector psql -U postgres -c "CREATE DATABASE ragdb;"
-```
-
-#### 既存のPostgreSQLにpgvectorをインストールする場合
-
-```sql
--- pgvectorエクステンションをインストール
-CREATE EXTENSION vector;
-```
-
-### 環境変数の設定
-
-`.env`ファイルを作成し、以下の環境変数を設定します：
-
-```
+```dotenv
+# .env
 # PostgreSQL接続情報
 POSTGRES_HOST=localhost
 POSTGRES_PORT=5432
@@ -83,411 +55,85 @@ POSTGRES_USER=postgres
 POSTGRES_PASSWORD=password
 POSTGRES_DB=ragdb
 
-# ドキュメントディレクトリ
-SOURCE_DIR=./data/source
-PROCESSED_DIR=./data/processed
+# サーバーの認証に使用するAPIキー
+API_KEY=your-secret-api-key
 
-# エンベディングモデル設定
+# ドキュメントのソースディレクトリ
+SOURCE_DIR=data/source
+# 処理済みドキュメントを保存するディレクトリ
+PROCESSED_DIR=data/processed
+
+# 埋め込みモデル
 EMBEDDING_MODEL=intfloat/multilingual-e5-large
-EMBEDDING_DIM=1024
-EMBEDDING_PREFIX_QUERY="query: "
-EMBEDDING_PREFIX_EMBEDDING="passage: "
 ```
 
-## エンベディングモデルの設定
+### 3. データベースの起動
 
-このサーバーでは、環境変数でエンベディングモデルを選択できます。
-
-### サポートされているモデル
-
-#### multilingual-e5-large（デフォルト）
-```env
-EMBEDDING_MODEL=intfloat/multilingual-e5-large
-EMBEDDING_DIM=1024
-EMBEDDING_PREFIX_QUERY="query: "
-EMBEDDING_PREFIX_EMBEDDING="passage: "
-```
-
-#### cl-nagoya/ruri-v3-30m
-```env
-EMBEDDING_MODEL=cl-nagoya/ruri-v3-30m
-EMBEDDING_DIM=256
-EMBEDDING_PREFIX_QUERY="検索クエリ: "
-EMBEDDING_PREFIX_EMBEDDING="検索文書: "
-```
-
-### プレフィックスについて
-
-多くのエンベディングモデル（特にE5系）では、テキストの種類に応じてプレフィックスを付けることで性能が向上します：
-
-- **検索クエリ用**: `EMBEDDING_PREFIX_QUERY` - ユーザーの検索クエリに自動で追加
-- **文書用**: `EMBEDDING_PREFIX_EMBEDDING` - インデックス化される文書に自動で追加
-
-プレフィックスは自動で処理されるため、MCPクライアントは意識する必要がありません。
-
-### モデル変更時の注意
-
-エンベディングモデルを変更した場合は、ベクトル次元が変わる可能性があるため、既存のインデックスをクリアして再作成してください：
+Docker Compose を使用して、`pgvector` をサポートしたPostgreSQLデータベースを起動します。
 
 ```bash
-python -m src.cli clear
+docker-compose up -d
+```
+
+データベースを停止する場合は、以下のコマンドを実行します。
+
+```bash
+docker-compose down
+```
+
+### 4. ドキュメントのインデックス化
+
+検索対象のドキュメントを `data/source` ディレクトリに配置してください。
+その後、CLIを使用してドキュメントをインデックス化します。
+
+```bash
 python -m src.cli index
 ```
 
-## 使い方
+このコマンドは、`data/source` 内のドキュメントを読み込み、チャンクに分割し、ベクトル化してデータベースに保存します。
 
-### MCPサーバーの起動
+### 5. MCPサーバーの起動
 
-#### uvを使用する場合（推奨）
-
-```bash
-uv run python -m src.main
-```
-
-オプションを指定する場合：
-
-```bash
-uv run python -m src.main --name "my-rag-server" --version "1.0.0" --description "My RAG Server"
-```
-
-#### 通常のPythonを使用する場合
+以下のコマンドでMCPサーバーを起動します。
 
 ```bash
 python -m src.main
 ```
 
-### コマンドラインツール（CLI）の使用方法
+サーバーはデフォルトで `http://0.0.0.0:8000` で起動します。
 
-インデックスのクリアとインデックス化を行うためのコマンドラインツールが用意されています。
+#### オプション
 
-#### ヘルプの表示
+- `--no-auth`: APIキー認証を無効にしてサーバーを起動します。
+- `--module <module_name>`: 追加のツールモジュールを読み込みます (例: `--module src.example_tool`)。
 
-```bash
-python -m src.cli --help
-```
+## APIのテスト (Swagger UI)
 
-#### インデックスのクリア
+サーバーが起動したら、Webブラウザで **`http://localhost:8000/docs`** にアクセスしてください。
 
-```bash
-python -m src.cli clear
-```
+FastAPIによって自動生成されたSwagger UIが表示され、以下のことが可能です。
 
-#### ドキュメントのインデックス化
+- **API仕様の確認**: 各エンドポイント（ツール）の詳細な仕様（パス、パラメータ、レスポンスなど）を確認できます。
+- **インタラクティブなテスト**: 「Try it out」機能を使って、ブラウザから直接APIを呼び出し、レスポンスを確認できます。
+- **認証**: 認証が必要な場合（`--no-auth` なしで起動した場合）、右上の「Authorize」ボタンをクリックし、`.env` で設定したAPIキーを `X-API-KEY` ヘッダーとして入力することで、認証付きのAPIをテストできます。
 
-```bash
-# デフォルト設定でインデックス化（./data/source ディレクトリ）
-python -m src.cli index
+![Swagger UI Screenshot](docs/swagger-ui-example.png)
 
-# 特定のディレクトリをインデックス化
-python -m src.cli index --directory ./path/to/documents
+## 開発と貢献
 
-# チャンクサイズとオーバーラップを指定してインデックス化
-python -m src.cli index --directory ./data/source --chunk-size 300 --chunk-overlap 50
-# または短い形式で
-python -m src.cli index -d ./data/source -s 300 -o 50
+### 追加ツールの作成
 
-# 差分インデックス化（新規・変更ファイルのみを処理）
-python -m src.cli index --incremental
-# または短い形式で
-python -m src.cli index -i
-```
+1. `src` ディレクトリに新しいPythonファイルを作成します (例: `src/my_tools.py`)。
+2. `fastapi.APIRouter` を使用して、ツールとなるAPIエンドポイントを定義します。
+3. `register_tools(server)` 関数を定義し、その中で作成したルーターを `server.register_router()` を使って登録します。
+4. サーバー起動時に `--module src.my_tools` のように指定して、作成したツールを読み込みます。
 
-#### インデックス内のドキュメント数の取得
+詳細な例として `src/example_tool.py` を参照してください。
 
-```bash
-python -m src.cli count
-```
+### コントリビューション
 
-### MCPホストでの設定
-
-MCPホスト（Claude Desktop、Cline、Cursorなど）でこのサーバーを使用するには、以下のような設定を行います。設定するjsonファイルについては、各MCPホストの　ドキュメントを参照してください。
-
-#### 設定例
-
-```json
-{
-  "mcpServers": {
-    "mcp-rag-server": {
-      "command": "uv",
-      "args": [
-        "run",
-        "--directory",
-        "/path/to/mcp-rag-server",
-        "python",
-        "-m",
-        "src.main"
-      ]
-    }
-  }
-}
-```
-
-#### 設定のポイント
-
-- `command`: `uv`（推奨）または`python`
-- `args`: 実行引数の配列
-- `/path/to/mcp-rag-server`: このリポジトリの実際のパスに置き換えてください
-
-#### uvを使用しない場合
-
-uvがインストールされていない環境では、通常のPythonを使用できます：
-
-```json
-{
-  "command": "python",
-  "args": [
-    "-m",
-    "src.main"
-  ],
-  "cwd": "/path/to/mcp-rag-server"
-}
-```
-
-## RAGツールの使用方法
-
-### search
-
-ベクトル検索を行います。
-
-```json
-{
-  "jsonrpc": "2.0",
-  "method": "search",
-  "params": {
-    "query": "Pythonのジェネレータとは何ですか？",
-    "limit": 5,
-    "with_context": true,
-    "context_size": 1,
-    "full_document": false
-  },
-  "id": 1
-}
-```
-
-#### パラメータの説明
-
-- `query`: 検索クエリ（必須）
-- `limit`: 返す結果の数（デフォルト: 5）
-- `with_context`: 前後のチャンクも取得するかどうか（デフォルト: true）
-- `context_size`: 前後に取得するチャンク数（デフォルト: 1）
-- `full_document`: ドキュメント全体を取得するかどうか（デフォルト: false）
-
-#### 検索結果の改善
-
-このツールは以下の機能により、より良い検索結果を提供します：
-
-1. **前後のチャンク取得機能**：
-   - 検索でヒットしたチャンクの前後のチャンクも取得して結果に含めます
-   - `with_context`パラメータで有効/無効を切り替え可能
-   - `context_size`パラメータで前後に取得するチャンク数を調整可能
-
-2. **ドキュメント全文取得機能**：
-   - 検索でヒットしたドキュメントの全文を取得して結果に含めます
-   - `full_document`パラメータで有効/無効を切り替え可能
-   - 特に短いドキュメントや全体の文脈が重要なドキュメントを扱う場合に有用
-
-3. **結果の整形改善**：
-   - 検索結果をファイルごとにグループ化
-   - 「検索ヒット」「前後のコンテキスト」「ドキュメント全文」を視覚的に区別
-   - チャンクインデックスでソートして文書の流れを維持
-
-### get_document_count
-
-インデックス内のドキュメント数を取得します。
-
-```json
-{
-  "jsonrpc": "2.0",
-  "method": "get_document_count",
-  "params": {},
-  "id": 2
-}
-```
-
-## 使用例
-
-1. ドキュメントファイルを `data/source` ディレクトリに配置します。サポートされるファイル形式は以下の通りです：
-   - マークダウン（.md, .markdown）
-   - テキスト（.txt）
-   - パワーポイント（.ppt, .pptx）
-   - Word（.doc, .docx）
-   - PDF（.pdf）
-
-2. CLIコマンドを使用してドキュメントをインデックス化します：
-   ```bash
-   # 初回は全件インデックス化
-   python -m src.cli index
-
-   # 以降は差分インデックス化で効率的に更新
-   python -m src.cli index -i
-   ```
-
-3. MCPサーバーを起動します：
-   ```bash
-   uv run python -m src.main
-   ```
-
-4. `search`ツールを使用して検索を行います。
-
-## バックアップと復元
-
-インデックス化したデータベースを別のPCで使用するには、以下の手順でバックアップと復元を行います。
-
-### 最小限のバックアップ（PostgreSQLデータベースのみ）
-
-単純に他のPCでRAG検索機能を使いたいだけなら、PostgreSQLデータベースのバックアップだけで十分です。ベクトル化されたデータはすべてデータベースに保存されているためです。
-
-#### PostgreSQLデータベースのバックアップ
-
-PostgreSQLデータベースをバックアップするには、Dockerコンテナ内で`pg_dump`コマンドを使用します：
-
-```bash
-# Dockerコンテナ内でデータベースをバックアップ
-docker exec -it postgres-pgvector pg_dump -U postgres -d ragdb -F c -f /tmp/ragdb_backup.dump
-
-# バックアップファイルをコンテナからホストにコピー
-docker cp postgres-pgvector:/tmp/ragdb_backup.dump ./ragdb_backup.dump
-```
-
-これにより、PostgreSQLデータベースのバックアップファイル（例：239MB）がカレントディレクトリに作成されます。
-
-#### 最小限の復元手順
-
-1. 新しいPCでPostgreSQLとpgvectorをセットアップします：
-
-```bash
-# Dockerを使用する場合
-docker run --name postgres-pgvector -e POSTGRES_PASSWORD=password -p 5432:5432 -d pgvector/pgvector:pg17
-
-# データベースを作成
-docker exec -it postgres-pgvector psql -U postgres -c "CREATE DATABASE ragdb;"
-```
-
-2. バックアップからデータベースを復元します：
-
-```bash
-# バックアップファイルをコンテナにコピー
-docker cp ./ragdb_backup.dump postgres-pgvector:/tmp/ragdb_backup.dump
-
-# コンテナ内でデータベースを復元
-docker exec -it postgres-pgvector pg_restore -U postgres -d ragdb -c /tmp/ragdb_backup.dump
-```
-
-3. 環境設定を確認します：
-
-新しいPCでは、`.env`ファイルのPostgreSQL接続情報が正しく設定されていることを確認してください。
-
-4. 動作確認：
-
-```bash
-python -m src.cli count
-```
-
-これにより、インデックス内のドキュメント数が表示されます。元のPCと同じ数が表示されれば、正常に復元されています。
-
-### 完全バックアップ（オプション）
-
-将来的に新しいドキュメントを追加する予定がある場合や、差分インデックス化機能を使用したい場合は、以下の追加バックアップも行うと良いでしょう：
-
-#### 処理済みドキュメントのバックアップ
-
-処理済みドキュメントディレクトリをバックアップします：
-
-```bash
-# 処理済みドキュメントディレクトリをZIPファイルにバックアップ
-zip -r processed_data_backup.zip data/processed/
-```
-
-#### 環境設定ファイルのバックアップ
-
-`.env`ファイルをバックアップします：
-
-```bash
-# .envファイルをコピー
-cp .env env_backup.txt
-```
-
-#### 完全復元手順
-
-1. 前提条件
-
-新しいPCには以下のソフトウェアがインストールされている必要があります：
-
-- Python 3.10以上
-- PostgreSQL 14以上（pgvectorエクステンション付き）
-- mcp-rag-serverのコードベース
-
-2. PostgreSQLデータベースを上記の「最小限の復元手順」で復元します。
-
-3. 処理済みドキュメントを復元します：
-
-```bash
-# ZIPファイルを展開
-unzip processed_data_backup.zip -d /path/to/mcp-rag-server/
-```
-
-4. 環境設定ファイルを復元します：
-
-```bash
-# .envファイルを復元
-cp env_backup.txt /path/to/mcp-rag-server/.env
-```
-
-必要に応じて、新しいPC環境に合わせて`.env`ファイルの設定（特にPostgreSQL接続情報）を編集します。
-
-5. 動作確認：
-
-```bash
-python -m src.cli count
-```
-
-### 注意点
-
-- PostgreSQLのバージョンとpgvectorのバージョンは、元のPCと新しいPCで互換性がある必要があります。
-- 大量のデータがある場合は、バックアップと復元に時間がかかる場合があります。
-- 新しいPCでは、必要なPythonパッケージ（`sentence-transformers`、`psycopg2-binary`など）をインストールしておく必要があります。
-
-## ディレクトリ構造
-
-```
-mcp-rag-server/
-├── data/
-│   ├── source/        # 原稿ファイル（階層構造対応）
-│   │   ├── markdown/  # マークダウンファイル
-│   │   ├── docs/      # ドキュメントファイル
-│   │   └── slides/    # プレゼンテーションファイル
-│   └── processed/     # 処理済みファイル（テキスト抽出済み）
-│       └── file_registry.json  # 処理済みファイルの情報（差分インデックス用）
-├── docs/
-│   └── design.md      # 設計書
-├── logs/              # ログファイル
-├── src/
-│   ├── __init__.py
-│   ├── document_processor.py  # ドキュメント処理モジュール
-│   ├── embedding_generator.py # エンベディング生成モジュール
-│   ├── example_tool.py        # サンプルツールモジュール
-│   ├── main.py                # メインエントリーポイント
-│   ├── mcp_server.py          # MCPサーバーモジュール
-│   ├── rag_service.py         # RAGサービスモジュール
-│   ├── rag_tools.py           # RAGツールモジュール
-│   └── vector_database.py     # ベクトルデータベースモジュール
-├── tests/
-│   ├── __init__.py
-│   ├── conftest.py
-│   ├── test_document_processor.py
-│   ├── test_embedding_generator.py
-│   ├── test_example_tool.py
-│   ├── test_mcp_server.py
-│   ├── test_rag_service.py
-│   ├── test_rag_tools.py
-│   └── test_vector_database.py
-├── .env           # 環境変数設定ファイル
-├── .gitignore
-├── LICENSE
-├── pyproject.toml
-└── README.md
-```
+Issueの報告やPull Requestを歓迎します。貢献する前に `CONTRIBUTING.md` をお読みください。
 
 ## ライセンス
 
-このプロジェクトはMITライセンスの下で公開されています。詳細は[LICENSE](LICENSE)ファイルを参照してください。
+[MIT License](LICENSE)
