@@ -1,8 +1,5 @@
 # MCP RAG Server
 
-[![CI](https://github.com/tadata-org/mcp-rag-server/actions/workflows/pytest.yml/badge.svg)](https://github.com/tadata-org/mcp-rag-server/actions/workflows/pytest.yml)
-[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
-
 Model Context Protocol (MCP) に準拠したRAG（Retrieval-Augmented Generation）機能を持つPythonサーバーです。
 `fastapi-mcp` を利用して、FastAPIアプリケーションをMCPサーバーとして公開します。
 
@@ -127,8 +124,6 @@ FastAPIによって自動生成されたSwagger UIが表示され、以下のこ
 - **API仕様の確認**: 各エンドポイント（ツール）の詳細な仕様（パス、パラメータ、レスポンスなど）を確認できます。
 - **インタラクティブなテスト**: 「Try it out」機能を使って、ブラウザから直接APIを呼び出し、レスポンスを確認できます。
 - **認証**: 認証が必要な場合（`--no-auth` なしで起動した場合）、右上の「Authorize」ボタンをクリックし、`.env` で設定したAPIキーを `X-API-KEY` ヘッダーとして入力することで、認証付きのAPIをテストできます。
-
-![Swagger UI Screenshot](docs/swagger-ui-example.png)
 
 ## 開発と貢献
 
