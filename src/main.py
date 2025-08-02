@@ -10,7 +10,7 @@ import logging
 from fastapi import FastAPI
 from dotenv import load_dotenv
 
-from .mcp_server import get_api_key
+from .auth_helpers import get_api_key
 from fastapi import Depends
 from .rag_tools import router as rag_router
 from fastapi_mcp import FastApiMCP
@@ -41,8 +41,13 @@ def create_app(no_auth: bool = False, additional_modules: list = None) -> FastAP
     )
 
     # fastapi-mcpのセットアップ
-    mcp = FastApiMCP(app)
-    mcp.mount()
+    mcp = FastApiMCP(
+        app,
+        name="MCP RAG Server",
+        description="RAG機能を提供するサーバー",
+        describe_all_responses=True,
+        describe_full_response_schema=True,  
+        )
 
     # 認証依存関係の設定
     auth_dependencies = []
@@ -70,6 +75,9 @@ def create_app(no_auth: bool = False, additional_modules: list = None) -> FastAP
                     logger.warning(f"モジュール '{module_name}' に登録可能なルーターが見つかりません")
             except ImportError as e:
                 logger.error(f"モジュール '{module_name}' の読み込みに失敗しました: {e}")
+
+    # MCPサーバーのマウント
+    mcp.mount()
 
     return app
 

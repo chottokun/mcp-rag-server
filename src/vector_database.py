@@ -511,7 +511,7 @@ class VectorDatabase:
             cursor = self.connection.cursor()
 
             # ドキュメント数を取得
-            cursor.execute("SELECT COUNT(*) FROM documents;")
+            cursor.execute("SELECT COUNT(DISTINCT file_path) FROM documents;")
             count = cursor.fetchone()[0]
 
             self.logger.info(f"データベース内のドキュメント数: {count}")
