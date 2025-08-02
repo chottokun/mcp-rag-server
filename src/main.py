@@ -40,14 +40,7 @@ def create_app(no_auth: bool = False, additional_modules: list = None) -> FastAP
         description="fastapi-mcpを使用してRAG機能を提供するサーバー",
     )
 
-    # fastapi-mcpのセットアップ
-    mcp = FastApiMCP(
-        app,
-        name="MCP RAG Server",
-        description="RAG機能を提供するサーバー",
-        describe_all_responses=True,
-        describe_full_response_schema=True,  
-        )
+
 
     # 認証依存関係の設定
     auth_dependencies = []
@@ -76,6 +69,15 @@ def create_app(no_auth: bool = False, additional_modules: list = None) -> FastAP
             except ImportError as e:
                 logger.error(f"モジュール '{module_name}' の読み込みに失敗しました: {e}")
 
+    # fastapi-mcpのセットアップ
+    mcp = FastApiMCP(
+        app,
+        name="MCP RAG Server",
+        description="RAG機能を提供するサーバー",
+        describe_all_responses=True,
+        describe_full_response_schema=True,  
+        )
+    
     # MCPサーバーのマウント
     mcp.mount()
 

@@ -92,7 +92,20 @@ class DocumentCountOutput(BaseModel):
 
 # --- APIエンドポイントの定義 ---
 
-@router.post("/search", response_model=SearchOutput, summary="ベクトル検索", description="ベクトル検索を行います")
+@router.post(
+        "/search",
+        response_model=SearchOutput,
+        summary="ベクトル検索",
+        description="""
+        ユーザーの質問に基づき、ベクトルデータベースから関連性の高いドキュメントを検索します。
+
+        **主なオプション:**
+        - `with_context`: 検索結果の前後のチャンク（文脈）も一緒に取得します。
+        - `full_document`: 検索結果が含まれるドキュメント全体を取得します。
+        """, # ★RAGServiceのdocstringを参考に詳細な説明を追加
+        response_description="検索結果のリスト。関連度の高い順にソートされています。", # ★成功レスポンスの説明
+        )
+
 def search(params: SearchInput, rag_service: RAGService = Depends(get_rag_service)) -> Dict[str, Any]:
     """
     ベクトル検索を行うAPIエンドポイント
@@ -128,7 +141,12 @@ def search(params: SearchInput, rag_service: RAGService = Depends(get_rag_servic
         raise HTTPException(status_code=500, detail=f"検索中にエラーが発生しました: {str(e)}")
 
 
-@router.get("/documents/count", response_model=DocumentCountOutput, summary="ドキュメント数取得", description="インデックス内のドキュメント数を取得します")
+@router.get(
+        "/documents/count",
+        response_model=DocumentCountOutput,
+        summary="インデックス済みドキュメント数の取得",
+        description="現在データベースに登録されているドキュメントの総数を取得します。"
+)
 def get_document_count(rag_service: RAGService = Depends(get_rag_service)) -> Dict[str, Any]:
     """
     インデックス内のドキュメント数を取得するAPIエンドポイント
