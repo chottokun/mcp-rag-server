@@ -33,7 +33,7 @@ python -m venv .venv
 source .venv/bin/activate
 
 # uvを使って依存関係をインストール
-uv pip install -r requirements.txt
+uv pip install -e .[dev]
 ```
 
 #### b. 環境変数の設定
@@ -72,13 +72,13 @@ EMBEDDING_MODEL=intfloat/multilingual-e5-large
 Docker Compose を使用して、`pgvector` をサポートしたPostgreSQLデータベースを起動します。
 
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
 データベースを停止する場合は、以下のコマンドを実行します。
 
 ```bash
-docker-compose down
+docker compose down
 ```
 
 ### 4. ドキュメントのインデックス化
@@ -108,7 +108,7 @@ python -m src.cli index
 以下のコマンドでMCPサーバーを起動します。
 
 ```bash
-python -m src.main
+python -m src.cli runserver
 ```
 
 サーバーはデフォルトで `http://0.0.0.0:8000` で起動します。
