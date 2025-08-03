@@ -7,6 +7,8 @@ MCP RAG Server Application Factory
 import os
 import importlib
 import logging
+from typing import Optional
+
 from fastapi import FastAPI
 from dotenv import load_dotenv
 
@@ -19,10 +21,18 @@ from fastapi_mcp import FastApiMCP
 load_dotenv()
 
 # ロギング設定
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
 logger = logging.getLogger(__name__)
 
-def create_app(no_auth: bool = False, additional_modules: list = None) -> FastAPI:
+# FastAPIアプリケーションを作成するファクトリ
+
+
+def create_app(
+    no_auth: bool = False, additional_modules: Optional[list[str]] = None
+) -> FastAPI:
     """
     FastAPIアプリケーションを作成し、設定します。
 
@@ -37,10 +47,10 @@ def create_app(no_auth: bool = False, additional_modules: list = None) -> FastAP
     app = FastAPI(
         title="MCP RAG Server",
         version="0.2.0",
-        description="fastapi-mcpを使用してRAG機能を提供するサーバー",
+        description=(
+            "fastapi-mcpを使用してRAG機能を提供するサーバー"
+        ),
     )
-
-
 
     # 認証依存関係の設定
     auth_dependencies = []
@@ -48,7 +58,12 @@ def create_app(no_auth: bool = False, additional_modules: list = None) -> FastAP
         auth_dependencies.append(Depends(get_api_key))
 
     # RAGツールのルーターを登録
-    app.include_router(rag_router, prefix="/rag", tags=["RAG"], dependencies=auth_dependencies)
+    app.include_router(
+        router=rag_router,
+        prefix="/rag",
+        tags=["RAG"],
+        dependencies=auth_dependencies,
+    )
     logger.info("RAGツールを登録しました")
 
     # 追加のツールモジュールを登録
@@ -56,16 +71,22 @@ def create_app(no_auth: bool = False, additional_modules: list = None) -> FastAP
         for module_name in additional_modules:
             try:
                 module = importlib.import_module(module_name)
-                if hasattr(module, "router") and hasattr(module, "prefix") and hasattr(module, "tags"):
+                if (
+                    hasattr(module, "router")
+                    and hasattr(module, "prefix")
+                    and hasattr(module, "tags")
+                ):
                     app.include_router(
                         module.router,
                         prefix=module.prefix,
                         tags=module.tags,
-                        dependencies=auth_dependencies
+                        dependencies=auth_dependencies,
                     )
                     logger.info(f"モジュール '{module_name}' からルーターを登録しました")
                 else:
-                    logger.warning(f"モジュール '{module_name}' に登録可能なルーターが見つかりません")
+                    logger.warning(
+                        f"モジュール '{module_name}' に登録可能なルーターが見つかりません"
+                    )
             except ImportError as e:
                 logger.error(f"モジュール '{module_name}' の読み込みに失敗しました: {e}")
 
@@ -77,7 +98,7 @@ def create_app(no_auth: bool = False, additional_modules: list = None) -> FastAP
         describe_all_responses=True,
         describe_full_response_schema=True,  
         )
-    
+   
     # MCPサーバーのマウント
     mcp.mount()
 
