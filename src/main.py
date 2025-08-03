@@ -96,9 +96,9 @@ def create_app(
         name="MCP RAG Server",
         description="RAG機能を提供するサーバー",
         describe_all_responses=True,
-        describe_full_response_schema=True,  
+        describe_full_response_schema=True,
         )
-   
+
     # MCPサーバーのマウント
     mcp.mount()
 
